@@ -16,6 +16,7 @@ const identity = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 let originalMatrix = identity.map((e) => e);
 let originalExifData = null;
 let originalImage = null;
+let originalFileName = null;
 
 const app = new PIXI.Application();
 await app.init();
@@ -72,6 +73,7 @@ redCursorElement.addEventListener("input", () => getTweakedMatrix());
 exportButtonElement.addEventListener("click", download);
 
 function addImage(file) {
+  originalFileName = file.name;
   const reader = new FileReader();
 
   reader.onload = () => {
@@ -156,13 +158,16 @@ function setMatrix(matrix) {
 
 async function download() {
   const a = document.createElement("a");
-  a.download = "corrected.jpg";
+
+  const dotI = originalFileName.lastIndexOf(".");
+  const name = originalFileName.substring(0, dotI);
+  const ext = originalFileName.substring(dotI);
+  a.download = `${name}-edited${ext}`;
 
   const originalExifData = piexif.load(originalImage);
   if (originalExifData.thumbnail) {
     delete originalExifData.thumbnail;
   }
-  console.log(originalExifData);
 
   const texture = await PIXI.Assets.load(originalImage);
   const sprite = new PIXI.Sprite(texture);
