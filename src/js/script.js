@@ -28,13 +28,6 @@ document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
     inputElement.click();
   });
 
-  inputElement.addEventListener("change", () => {
-    if (inputElement.files.length) {
-      updateThumbnail(dropZoneElement, inputElement.files[0]);
-      sidebarElement.classList.add("hidden"); // Hide the sidebar when an image is uploaded
-    }
-  });
-
   dropZoneElement.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZoneElement.classList.add("drop-zone--over");
@@ -46,14 +39,20 @@ document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
     });
   });
 
-  dropZoneElement.addEventListener("drop", (e) => {
-    e.preventDefault();
-
-    if (e.dataTransfer.files.length) {
-      inputElement.files = e.dataTransfer.files;
-      addImage(e.dataTransfer.files[0]);
+  function handleFile(file) {
+    if (file) {
+      addImage(file);
       dropZoneElement.classList.add("hidden");
     }
+  }
+  dropZoneElement.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    handleFile(file);
+  });
+  dropZoneElement.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    handleFile(file);
   });
 });
 
