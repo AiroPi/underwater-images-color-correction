@@ -12,8 +12,10 @@ const magicLessRed = [
 ];
 
 const identity = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
+
 let originalMatrix = identity.map((e) => e);
 let originalExifData = null;
+let originalImage = null;
 
 const app = new PIXI.Application();
 await app.init();
@@ -22,7 +24,6 @@ const filter = new PIXI.ColorMatrixFilter();
 
 document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
   const dropZoneElement = inputElement.closest(".drop-zone");
-  const sidebarElement = document.querySelector(".sidebar");
 
   dropZoneElement.addEventListener("click", () => {
     inputElement.click();
@@ -76,10 +77,29 @@ function addImage(file) {
   reader.onload = () => {
     imageZone.classList.remove("hidden");
 
-    originalExifData = piexif.load(reader.result);
+    // originalExifData = piexif.load(reader.result);
+    originalImage = reader.result;
 
     PIXI.Assets.load(reader.result).then((texture) => {
       const sprite = new PIXI.Sprite(texture);
+
+      const imageWidth = sprite.texture.width;
+      const imageHeight = sprite.texture.height;
+
+      const maxDimension = 1000;
+
+      const scaleX = maxDimension / imageWidth;
+      const scaleY = maxDimension / imageHeight;
+
+      const scale = Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
+
+      const newCanvasWidth = Math.round(imageWidth * scale);
+      const newCanvasHeight = Math.round(imageHeight * scale);
+
+      app.renderer.resize(newCanvasWidth, newCanvasHeight);
+      app.canvas.width = newCanvasWidth;
+      app.canvas.height = newCanvasHeight;
+      sprite.scale.set(scale, scale);
 
       const pixels = app.renderer.extract.pixels(texture);
       originalMatrix = getColorFilterMatrix(
@@ -97,10 +117,6 @@ function addImage(file) {
       app.canvas.style.width = "100%";
       app.canvas.style.height = "100%";
       app.canvas.style.objectFit = "contain";
-
-      app.renderer.resize(sprite.texture.width, sprite.texture.height);
-      app.canvas.width = sprite.texture.width;
-      app.canvas.height = sprite.texture.height;
     });
   };
   reader.readAsDataURL(file);
@@ -138,12 +154,22 @@ function setMatrix(matrix) {
   filter.matrix = matrix;
 }
 
-function download() {
+async function download() {
   const a = document.createElement("a");
   a.download = "corrected.jpg";
 
+  const originalExifData = piexif.load(originalImage);
+  if (originalExifData.thumbnail) {
+    delete originalExifData.thumbnail;
+  }
+  console.log(originalExifData);
+
+  const texture = await PIXI.Assets.load(originalImage);
+  const sprite = new PIXI.Sprite(texture);
+  sprite.filters = [filter];
+
   app.renderer.extract
-    .base64({ target: app.stage, format: "jpg", quality: 0.9 })
+    .base64({ target: sprite, format: "jpg", quality: 0.9 })
     .then((jpegData) => {
       const withExif = piexif.insert(piexif.dump(originalExifData), jpegData);
 
