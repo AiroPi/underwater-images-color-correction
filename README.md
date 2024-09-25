@@ -1,4 +1,4 @@
-<img src="https://bannermd.airopi.dev/banner?title=UUIC&desc=Fix%20the %20color%20of%20your%20best%20photographies!&repo=AiroPi/underwater-images-color-correction" width="100%" alt="banner"/>
+<img src="https://bannermd.airopi.dev/banner?title=UUIC&desc=Fix%20the%20color%20of%20your%20best%20photographies!&repo=AiroPi/underwater-images-color-correction" width="100%" alt="banner"/>
 
 # Underwater Images Color Correction
 
