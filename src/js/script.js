@@ -41,20 +41,20 @@ document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
     });
   });
 
-  function handleFile(file) {
+  function fileUploadEventHandler(file) {
     if (file) {
-      addImage(file);
+      handleFile(file);
       dropZoneElement.classList.add("hidden");
     }
   }
   dropZoneElement.addEventListener("drop", (e) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    handleFile(file);
+    fileUploadEventHandler(file);
   });
   dropZoneElement.addEventListener("change", (e) => {
     const file = e.target.files[0];
-    handleFile(file);
+    fileUploadEventHandler(file);
   });
 });
 
@@ -72,56 +72,59 @@ redCursorElement.addEventListener("input", () => getTweakedMatrix());
 
 exportButtonElement.addEventListener("click", download);
 
-function addImage(file) {
+async function handleFile(file) {
+  imageZone.classList.remove("hidden");
+
   originalFileName = file.name;
   const reader = new FileReader();
-
-  reader.onload = () => {
-    imageZone.classList.remove("hidden");
-
-    // originalExifData = piexif.load(reader.result);
-    originalImage = reader.result;
-
-    PIXI.Assets.load(reader.result).then((texture) => {
-      const sprite = new PIXI.Sprite(texture);
-
-      const imageWidth = sprite.texture.width;
-      const imageHeight = sprite.texture.height;
-
-      const maxDimension = 1000;
-
-      const scaleX = maxDimension / imageWidth;
-      const scaleY = maxDimension / imageHeight;
-
-      const scale = Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
-
-      const newCanvasWidth = Math.round(imageWidth * scale);
-      const newCanvasHeight = Math.round(imageHeight * scale);
-
-      app.renderer.resize(newCanvasWidth, newCanvasHeight);
-      app.canvas.width = newCanvasWidth;
-      app.canvas.height = newCanvasHeight;
-      sprite.scale.set(scale, scale);
-
-      const pixels = app.renderer.extract.pixels(texture);
-      originalMatrix = getColorFilterMatrix(
-        pixels.pixels,
-        pixels.width,
-        pixels.height
-      );
-      setMatrix(originalMatrix);
-
-      filter.matrix = originalMatrix;
-      sprite.filters = [filter];
-      app.stage.addChild(sprite);
-      imageZone.appendChild(app.canvas);
-
-      app.canvas.style.width = "100%";
-      app.canvas.style.height = "100%";
-      app.canvas.style.objectFit = "contain";
-    });
-  };
+  reader.onload = () => processFile(reader);
   reader.readAsDataURL(file);
+}
+
+async function processFile(reader) {
+  originalImage = reader.result;
+
+  const texture = await PIXI.Assets.load(reader.result);
+  const sprite = new PIXI.Sprite(texture);
+
+  const imageWidth = sprite.texture.width;
+  const imageHeight = sprite.texture.height;
+
+  const maxDimension = 2048;
+
+  const scaleX = maxDimension / imageWidth;
+  const scaleY = maxDimension / imageHeight;
+
+  const scale = Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
+
+  const newCanvasWidth = Math.round(imageWidth * scale);
+  const newCanvasHeight = Math.round(imageHeight * scale);
+
+  app.renderer.resize(newCanvasWidth, newCanvasHeight);
+
+  sprite.width = newCanvasWidth;
+  sprite.height = newCanvasHeight;
+
+  app.stage.addChild(sprite);
+  app.renderer.render(app.stage);
+  const pixels = app.renderer.extract.pixels(app.stage);
+
+  originalMatrix = getColorFilterMatrix(
+    pixels.pixels,
+    pixels.width,
+    pixels.height
+  );
+
+  setMatrix(originalMatrix);
+
+  filter.matrix = originalMatrix;
+  sprite.filters = [filter];
+  app.stage.addChild(sprite);
+  imageZone.appendChild(app.canvas);
+
+  app.canvas.style.width = "100%";
+  app.canvas.style.height = "100%";
+  app.canvas.style.objectFit = "contain";
 }
 
 function getTweakedMatrix() {
@@ -156,29 +159,58 @@ function setMatrix(matrix) {
   filter.matrix = matrix;
 }
 
+async function exportLargeImage(sprite, originalWidth, originalHeight) {
+  const chunkSize = 2048; // Adjust based on device capabilities
+  const canvas = document.createElement("canvas");
+  canvas.width = originalWidth;
+  canvas.height = originalHeight;
+  const ctx = canvas.getContext("2d");
+
+  for (let y = 0; y < originalHeight; y += chunkSize) {
+    for (let x = 0; x < originalWidth; x += chunkSize) {
+      const chunkWidth = Math.min(chunkSize, originalWidth - x);
+      const chunkHeight = Math.min(chunkSize, originalHeight - y);
+
+      const chunkSprite = new PIXI.Sprite(sprite.texture);
+      chunkSprite.filters = sprite.filters;
+      chunkSprite.x = -x;
+      chunkSprite.y = -y;
+
+      const renderTexture = PIXI.RenderTexture.create({
+        width: chunkWidth,
+        height: chunkHeight,
+      });
+
+      app.renderer.render({
+        container: chunkSprite,
+        target: renderTexture,
+      });
+      const chunkCanvas = app.renderer.extract.canvas(renderTexture);
+      ctx.drawImage(chunkCanvas, x, y);
+
+      renderTexture.destroy();
+    }
+  }
+
+  return canvas;
+}
+
 async function download() {
   const a = document.createElement("a");
 
   const dotI = originalFileName.lastIndexOf(".");
   const name = originalFileName.substring(0, dotI);
-  const ext = originalFileName.substring(dotI);
-  a.download = `${name}-edited${ext}`;
-
-  const originalExifData = piexif.load(originalImage);
-  if (originalExifData.thumbnail) {
-    delete originalExifData.thumbnail;
-  }
+  a.download = `${name}-edited.jpg`;
 
   const texture = await PIXI.Assets.load(originalImage);
+  const originalWidth = texture.width;
+  const originalHeight = texture.height;
   const sprite = new PIXI.Sprite(texture);
   sprite.filters = [filter];
 
-  app.renderer.extract
-    .base64({ target: sprite, format: "jpg", quality: 0.9 })
-    .then((jpegData) => {
-      const withExif = piexif.insert(piexif.dump(originalExifData), jpegData);
+  const canvas = await exportLargeImage(sprite, originalWidth, originalHeight);
+  const jpegData = canvas.toDataURL("image/jpeg", 0.9);
 
-      a.href = withExif;
-      a.click();
-    });
+  a.href = jpegData;
+  a.click();
 }
