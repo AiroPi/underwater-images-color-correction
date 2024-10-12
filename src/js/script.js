@@ -1,3 +1,4 @@
+// These are "magic" matrix used later to tweak the filter matrix.
 const magicLessBlue = [
   0, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 1, 0, -1.3, 0, 0, 0, 0, 0,
 ];
@@ -13,6 +14,13 @@ const magicLessRed = [
 
 const identity = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
+// UI elements
+const imageZone = document.getElementById("image-zone");
+const exportButtonElement = document.getElementById("export-button");
+const gainCursorElement = document.getElementById("gain");
+const greenBlueCursorElement = document.getElementById("greenblue");
+const redCursorElement = document.getElementById("red");
+
 let originalMatrix = identity.map((e) => e);
 let originalExifData = null;
 let originalImage = null;
@@ -24,6 +32,7 @@ await app.init();
 const filter = new PIXI.ColorMatrixFilter();
 
 document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
+  // Handle file drop
   const dropZoneElement = inputElement.closest(".drop-zone");
 
   dropZoneElement.addEventListener("click", () => {
@@ -58,14 +67,7 @@ document.querySelectorAll(".drop-zone__input").forEach((inputElement) => {
   });
 });
 
-const imageZone = document.getElementById("image-zone");
-
-const exportButtonElement = document.getElementById("export-button");
-
-const gainCursorElement = document.getElementById("gain");
-const greenBlueCursorElement = document.getElementById("greenblue");
-const redCursorElement = document.getElementById("red");
-
+// handle cursors tweaks
 gainCursorElement.addEventListener("input", () => getTweakedMatrix());
 greenBlueCursorElement.addEventListener("input", () => getTweakedMatrix());
 redCursorElement.addEventListener("input", () => getTweakedMatrix());
@@ -73,6 +75,7 @@ redCursorElement.addEventListener("input", () => getTweakedMatrix());
 exportButtonElement.addEventListener("click", download);
 
 async function handleFile(file) {
+  // Handle dropped file
   imageZone.classList.remove("hidden");
 
   originalFileName = file.name;
@@ -82,16 +85,20 @@ async function handleFile(file) {
 }
 
 async function processFile(reader) {
+  // Process dropped file
   originalImage = reader.result;
 
   const texture = await PIXI.Assets.load(reader.result);
   const sprite = new PIXI.Sprite(texture);
+  sprite.filters = [filter];
 
   const imageWidth = sprite.texture.width;
   const imageHeight = sprite.texture.height;
 
+  // The maximum x or y dimension of the image that will be displayed.
   const maxDimension = 2048;
 
+  // Scale the image to match the maximum dimension
   const scaleX = maxDimension / imageWidth;
   const scaleY = maxDimension / imageHeight;
 
@@ -100,13 +107,14 @@ async function processFile(reader) {
   const newCanvasWidth = Math.round(imageWidth * scale);
   const newCanvasHeight = Math.round(imageHeight * scale);
 
-  app.renderer.resize(newCanvasWidth, newCanvasHeight);
-
   sprite.width = newCanvasWidth;
   sprite.height = newCanvasHeight;
 
   app.stage.addChild(sprite);
+  app.renderer.resize(newCanvasWidth, newCanvasHeight);
   app.renderer.render(app.stage);
+
+  // Extract the resized image into a pixels array, the generate the initial filter matrix
   const pixels = app.renderer.extract.pixels(app.stage);
 
   originalMatrix = getColorFilterMatrix(
@@ -115,22 +123,23 @@ async function processFile(reader) {
     pixels.height
   );
 
+  // Set the filter matrix to the displayed image
   setMatrix(originalMatrix);
 
-  filter.matrix = originalMatrix;
-  sprite.filters = [filter];
-  app.stage.addChild(sprite);
-  imageZone.appendChild(app.canvas);
-
+  // Add the canvas to the DOM
+  // TODO: set css to the css file
   app.canvas.style.width = "100%";
   app.canvas.style.height = "100%";
   app.canvas.style.objectFit = "contain";
+  imageZone.appendChild(app.canvas);
 }
 
 function getTweakedMatrix() {
+  // Function the get the positions from the cursors, and change the matrix value using the magic matrixes
   let lessBlue, lessGreen, lessRed, moreRed;
   lessBlue = lessGreen = lessRed = moreRed = 0;
 
+  // Cursors go from negative to positive value. Depending of their position, we want to remove green or to remove green.
   if (greenBlueCursorElement.value < 0) {
     lessBlue = Math.abs(greenBlueCursorElement.value);
   } else {
@@ -142,6 +151,7 @@ function getTweakedMatrix() {
     moreRed = redCursorElement.value;
   }
 
+  // We calculate a new matrix based on the original matrix generated from the algorithm.
   const matrix = originalMatrix.map(
     (value, i) =>
       identity[i] +
@@ -152,6 +162,7 @@ function getTweakedMatrix() {
       lessRed * magicLessRed[i]
   );
 
+  // Instead of returning the matrix, we change the filter matrix attribute to the new generated matrix.
   setMatrix(matrix);
 }
 
@@ -160,10 +171,17 @@ function setMatrix(matrix) {
 }
 
 async function exportLargeImage(sprite, originalWidth, originalHeight) {
-  const chunkSize = 2048; // Adjust based on device capabilities
+  // This function is used to export the final image chunk by chunk.
+  // We are doing this because on mobile devices, exporting the whole image at once could crash the device.
+  // So we generate small chunks that are placed into a larger canvas (that fit the original image size).
+  // TODO: some devices have a maximum canvas size (4096*4096 on iPhone X, 8192*8192 on iPhone 15), so we could set some maximum values to downscale the image...
+
+  const chunkSize = 2048; // Adjust based on device capabilities, chunks are chunkSize*chunkSize big.
+
   const canvas = document.createElement("canvas");
   canvas.width = originalWidth;
   canvas.height = originalHeight;
+
   const ctx = canvas.getContext("2d");
 
   for (let y = 0; y < originalHeight; y += chunkSize) {
@@ -202,6 +220,7 @@ async function download() {
   const name = originalFileName.substring(0, dotI);
   a.download = `${name}-edited.jpg`;
 
+  // We create a new sprite with the original dimensions (no downscale)
   const texture = await PIXI.Assets.load(originalImage);
   const originalWidth = texture.width;
   const originalHeight = texture.height;
@@ -210,6 +229,8 @@ async function download() {
 
   const canvas = await exportLargeImage(sprite, originalWidth, originalHeight);
   const jpegData = canvas.toDataURL("image/jpeg", 0.9);
+
+  // TODO: add the original metadata to the generated photo
 
   a.href = jpegData;
   a.click();
