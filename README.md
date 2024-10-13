@@ -1,10 +1,29 @@
-<img src="https://bannermd.airopi.dev/banner?title=UUIC&desc=Fix%20the%20color%20of%20your%20best%20photographies!&repo=AiroPi/underwater-images-color-correction" width="100%" alt="banner"/>
+<img src="https://bannermd.airopi.dev/banner?title=UICC&desc=Fix%20the%20color%20of%20your%20best%20photographies!&repo=AiroPi/underwater-images-color-correction" width="100%" alt="banner"/>
 
 # Underwater Images Color Correction
 
 A web application that lets you magically correct the colour of photos you've taken underwater!
 
 ## ⚠️ This project is under construction. It is not currently available nor finished.
+
+## TODO
+
+- [x] support mobile devices
+- [x] support video load / preview
+- [ ] re-implement the matrix generation algorithm in rust
+- [ ] use the rust version of the algorithm with WASM
+- [ ] add loading status bar
+    - [ ] for file reading
+    - [ ] for matrixes generation
+    - [ ] for download / export
+- [ ] support video export
+- [ ] support multiple file uploads
+- [ ] add metadata to generated files
+- [ ] add option for unique / multiple video export
+- [ ] support video audio
+- [ ] support unsupported file format (ffmpeg.wasm transcoding for video, HEIC convert for images)
+- [ ] setup PWA
+- [ ] support scrolling / zooming in the image
 
 ## Why ?
 
@@ -18,14 +37,17 @@ Sources: [wikipedia](https://fr.m.wikipedia.org/wiki/Fichier:Absorption_des_coul
 
 ## How to use ?
 
-Futur instructions will be added soon.
+Online versions available at:
+- https://underwater-images-color-correction.vercel.app
+- https://underwater-images-color-correction.pages.dev
 
 ## How it works ?
 
-Using javascript, rust and webassembly (all transformations are done in your browser, no back-end !).
+Using javascript, webgl (PIXI.js), ~~rust and webassembly~~ (all transformations are done in your browser, nothing is uploaded to any server).
 
 This repo was inspired by the algorithm at https://github.com/nikolajbech/underwater-image-color-correction.
 
-## Examples : (from https://github.com/nikolajbech/underwater-image-color-correction)
+## Examples :
+src: https://github.com/nikolajbech/underwater-image-color-correction
 
 ![image](https://github.com/user-attachments/assets/86897f27-2762-4d14-9895-8af3e609b0a5)
