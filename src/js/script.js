@@ -14,9 +14,9 @@ const magicLessRed = [
 
 const identity = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
-const videoMatrixInterval = 0.1;
+const videoMatrixInterval = 0.2;
 // The maximum x or y dimension of the image that will be displayed.
-const previewMaxDimension = 2048;
+const previewMaxDimension = 1024;
 
 // UI elements
 const imageZone = document.getElementById("image-zone");
@@ -49,7 +49,12 @@ class UnderwaterCorrector {
 
         this.previewFilter = new PIXI.ColorMatrixFilter();
 
-        this.texture = await PIXI.Assets.load(this.originalFileData);
+        this.texture = await PIXI.Assets.load({
+            src: this.originalFileData,
+            loadParser: this.fileType.startsWith("video")
+                ? "loadVideo"
+                : "loadTextures",
+        });
         this.sprite = new PIXI.Sprite(this.texture);
         this.sprite.filters = [this.previewFilter];
         this.pixiApp.stage.addChild(this.sprite);
@@ -364,7 +369,13 @@ async function handleFile(file) {
     const fileType = file.type;
 
     const reader = new FileReader();
-    reader.onload = () =>
-        new UnderwaterCorrector(reader.result, fileType, file.name);
-    reader.readAsDataURL(file);
+    reader.onload = () => {
+        const blob = new Blob([reader.result], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        new UnderwaterCorrector(url, fileType, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+    // reader.onload = () =>
+    //     new UnderwaterCorrector(reader.result, fileType, file.name);
+    // reader.readAsDataURL(file);
 }
