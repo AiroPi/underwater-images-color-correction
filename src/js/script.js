@@ -21,9 +21,11 @@ const previewMaxDimension = 2048;
 // UI elements
 const imageZone = document.getElementById("image-zone");
 const exportButtonElement = document.getElementById("export-button");
+const playPauseButtonElement = document.getElementById("play-pause");
 const gainCursorElement = document.getElementById("gain");
 const greenBlueCursorElement = document.getElementById("greenblue");
 const redCursorElement = document.getElementById("red");
+const videoSeekCursorElement = document.getElementById("video-seek");
 
 class UnderwaterCorrector {
     constructor(fileData, fileType, fileName) {
@@ -37,7 +39,6 @@ class UnderwaterCorrector {
         this.filterMatrixes = new Array();
 
         this.init();
-        this.bindDomElements();
     }
 
     // One-time call methods (initialisation)
@@ -75,6 +76,7 @@ class UnderwaterCorrector {
         this.pixiApp.canvas.style.objectFit = "contain";
         // Add the canvas to the DOM
         imageZone.appendChild(this.pixiApp.canvas);
+        this.bindDomElements();
     }
 
     bindDomElements() {
@@ -84,6 +86,18 @@ class UnderwaterCorrector {
             }
         );
 
+        if (this.fileType.startsWith("video")) {
+            videoSeekCursorElement.max = this.domElement.duration;
+            videoSeekCursorElement.addEventListener("input", () =>
+                this.videoSeekCursorInputListener()
+            );
+            this.domElement.addEventListener("timeupdate", () =>
+                this.videoTimeupdateListener()
+            );
+            playPauseButtonElement.addEventListener("click", () =>
+                this.videoTogglePlay()
+            );
+        }
         exportButtonElement.addEventListener("click", () => this.download());
     }
 
@@ -253,6 +267,29 @@ class UnderwaterCorrector {
             requestAnimationFrame(update);
         }
         requestAnimationFrame(update);
+    }
+
+    videoTimeupdateListener() {
+        videoSeekCursorElement.value = this.domElement.currentTime;
+    }
+
+    videoSeekCursorInputListener() {
+        this.domElement.currentTime = videoSeekCursorElement.value;
+    }
+
+    videoTogglePlay() {
+        const video = this.domElement;
+        const videoIsPlaying =
+            video.currentTime > 0 &&
+            !video.paused &&
+            !video.ended &&
+            video.readyState > 2;
+
+        if (videoIsPlaying) {
+            video.pause();
+        } else {
+            video.play();
+        }
     }
 
     async download() {
