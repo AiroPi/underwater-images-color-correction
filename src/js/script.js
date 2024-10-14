@@ -310,7 +310,9 @@ class UnderwaterCorrector {
         const originalHeight = texture.height;
         const sprite = new PIXI.Sprite(texture);
         const filter = new PIXI.ColorMatrixFilter();
-        filter.matrix = this.filterMatrixes[0];
+        filter.matrix = UnderwaterCorrector.getTweakedMatrix(
+            this.filterMatrixes[0]
+        );
         sprite.filters = [filter];
 
         const canvas = await UnderwaterCorrector.exportLargeImage(
