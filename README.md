@@ -23,6 +23,7 @@ A web application that lets you magically correct the colour of photos you've ta
 - [ ] support multiple file uploads
 - [ ] add metadata to generated files
     - [x] metadata support for JPG files
+        - [ ] drop the thumbnail in metadata
     - [x] partial metadata support for other files
     - [ ] use exiv2 wasm ?
     - [ ] support video metadata 
