@@ -10,6 +10,9 @@ A web application that lets you magically correct the colour of photos you've ta
 
 - [x] support mobile devices
 - [x] support video load / preview
+    - [ ] conditional UI
+- [ ] allow to reupload a new photo easily (without reloading the page)
+- [ ] allow double click to reset sliders- 
 - [ ] re-implement the matrix generation algorithm in rust
 - [ ] use the rust version of the algorithm with WASM
 - [ ] add loading status bar
@@ -19,6 +22,10 @@ A web application that lets you magically correct the colour of photos you've ta
 - [ ] support video export
 - [ ] support multiple file uploads
 - [ ] add metadata to generated files
+    - [x] metadata support for JPG files
+    - [x] partial metadata support for other files
+    - [ ] use exiv2 wasm ?
+    - [ ] support video metadata 
 - [ ] add option for unique / multiple video export
 - [ ] support video audio
 - [ ] support unsupported file format (ffmpeg.wasm transcoding for video, HEIC convert for images)
