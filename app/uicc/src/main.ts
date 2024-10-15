@@ -1,4 +1,7 @@
+import * as ExifReader from "exifreader";
+import * as piexif from "piexifjs";
 import * as PIXI from "pixi.js";
+import { exifReaderToPiexif } from "./exif";
 import { getColorFilterMatrix } from "./image-correction";
 
 // These are "magic" matrix used later to tweak the filter matrix.
@@ -44,6 +47,7 @@ class UnderwaterCorrector {
     originalFileData: any;
     originalFileName: string;
     fileType: string;
+    metadatas: any;
 
     filterMatrixes: PIXI.ColorMatrix[];
     pixiApp!: PIXI.Application;
@@ -54,11 +58,17 @@ class UnderwaterCorrector {
     previewWidth!: number;
     previewHeight!: number;
 
-    constructor(fileData: any, fileType: string, fileName: string) {
+    constructor(
+        fileData: any,
+        fileType: string,
+        fileName: string,
+        metadatas?: any
+    ) {
         console.log(fileType);
         this.originalFileData = fileData;
         this.originalFileName = fileName;
         this.fileType = fileType;
+        this.metadatas = metadatas;
 
         // An array of matrix filter. When the target is an image, this is a single-element matrix.
         // When the target is a video, there is one matrix generated for every 2 seconds of video.
@@ -358,7 +368,8 @@ class UnderwaterCorrector {
             originalWidth,
             originalHeight
         );
-        const jpegData = canvas.toDataURL("image/jpeg", 0.9);
+        let jpegData = canvas.toDataURL("image/jpeg", 0.9);
+        jpegData = piexif.insert(this.metadatas, jpegData);
 
         // TODO: add the original metadata to the generated media
         a.href = jpegData;
@@ -410,17 +421,35 @@ document.querySelectorAll(".drop-zone__input").forEach((element) => {
 async function handleFile(file: any) {
     // Handle dropped file
     imageZone.classList.remove("hidden");
-    const fileType = file.type;
+    const fileType: string = file.type;
 
+    let metadatas = null;
+    if (fileType === "image/jpeg") {
+        // console.log("using piexif");
+        const newReader = new FileReader();
+        const loadPromise = new Promise((resolve) => {
+            newReader.onload = resolve;
+        });
+        newReader.readAsDataURL(file);
+        await loadPromise;
+        // console.log(piexif.load(newReader.result));
+        metadatas = piexif.dump(piexif.load(newReader.result));
+    }
     const reader = new FileReader();
-    reader.onload = () => {
-        // @ts-ignore
-        const blob = new Blob([reader.result], { type: file.type });
-        const url = URL.createObjectURL(blob);
-        new UnderwaterCorrector(url, fileType, file.name);
-    };
+    const loadPromise = new Promise((resolve) => {
+        reader.onload = resolve;
+    });
     reader.readAsArrayBuffer(file);
-    // reader.onload = () =>
-    //     new UnderwaterCorrector(reader.result, fileType, file.name);
-    // reader.readAsDataURL(file);
+    await loadPromise;
+
+    if (fileType.startsWith("image") && fileType !== "image/jpeg") {
+        const tags = await ExifReader.load(reader.result);
+        // console.log(exifReaderToPiexif(tags));
+        metadatas = piexif.dump(exifReaderToPiexif(tags));
+    }
+    // @ts-ignore (flemme)
+    const blob = new Blob([reader.result], { type: file.type });
+    const url = URL.createObjectURL(blob);
+    // console.log(metadatas);
+    new UnderwaterCorrector(url, fileType, file.name, metadatas);
 }

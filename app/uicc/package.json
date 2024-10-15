@@ -13,6 +13,8 @@
     "vite": "^5.4.8"
   },
   "dependencies": {
+    "exifreader": "^4.23.7",
+    "piexifjs": "^1.0.6",
     "pixi.js": "^8.5.1"
   }
 }
