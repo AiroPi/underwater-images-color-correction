@@ -1,30 +1,5 @@
-import * as ExifReader from "exifreader";
-import * as piexif from "piexifjs";
 import * as PIXI from "pixi.js";
-import { exifReaderToPiexif } from "./exif";
-import { getColorFilterMatrix } from "./image-correction";
-
-// These are "magic" matrix used later to tweak the filter matrix.
-const magicLessBlue: PIXI.ColorMatrix = [
-    0, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 1, 0, -1.3, 0, 0, 0, 0, 0,
-];
-const magicLessGreen: PIXI.ColorMatrix = [
-    0, 0, 0, 0, 0, 0, 1, 0, 0, -1.3, 0, 0, 0.3, 0, 0, 0, 0, 0, 0, 0,
-];
-const magicMoreRed: PIXI.ColorMatrix = [
-    0.8, 0.7, 0.5, 0, -1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-const magicLessRed: PIXI.ColorMatrix = [
-    -0.8, -0.7, -0.5, 0, 1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-
-const identity: PIXI.ColorMatrix = [
-    1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
-];
-
-const videoMatrixInterval = 0.2;
-// The maximum x or y dimension of the image that will be displayed.
-const previewMaxDimension = 1024;
+import { Preview, UnloadedPreview, VideoPreview } from "./previews";
 
 // UI elements
 const imageZone = document.getElementById("image-zone") as HTMLImageElement;
@@ -43,73 +18,23 @@ const videoSeekCursorElement = document.getElementById(
     "video-seek"
 ) as HTMLInputElement;
 
-class UnderwaterCorrector {
-    originalFileData: any;
-    originalFileName: string;
-    fileType: string;
-    metadatas: any;
-
-    filterMatrixes: PIXI.ColorMatrix[];
+export class UnderwaterCorrectorApp {
     pixiApp!: PIXI.Application;
-    previewFilter!: PIXI.ColorMatrixFilter;
-    texture!: PIXI.Texture;
-    sprite!: PIXI.Sprite;
-    domElement!: HTMLVideoElement | HTMLImageElement;
-    previewWidth!: number;
-    previewHeight!: number;
+    tweakParameters: TweakParametersT;
+    previews: UnloadedPreview[];
+    currentPreview: Preview | null;
+    currentPreviewIndex: number | null;
 
-    constructor(
-        fileData: any,
-        fileType: string,
-        fileName: string,
-        metadatas?: any
-    ) {
-        console.log(fileType);
-        this.originalFileData = fileData;
-        this.originalFileName = fileName;
-        this.fileType = fileType;
-        this.metadatas = metadatas;
-
-        // An array of matrix filter. When the target is an image, this is a single-element matrix.
-        // When the target is a video, there is one matrix generated for every 2 seconds of video.
-        this.filterMatrixes = new Array();
-
-        this.init();
+    constructor() {
+        this.tweakParameters = { gain: 1, greenBlue: 0, red: 0 };
+        this.previews = [];
+        this.currentPreview = null;
+        this.currentPreviewIndex = null;
     }
-
-    // One-time call methods (initialisation)
 
     async init() {
         this.pixiApp = new PIXI.Application();
         await this.pixiApp.init();
-
-        this.previewFilter = new PIXI.ColorMatrixFilter();
-
-        this.texture = await PIXI.Assets.load({
-            src: this.originalFileData,
-            loadParser: this.fileType.startsWith("video")
-                ? "loadVideo"
-                : "loadTextures",
-        });
-        this.sprite = new PIXI.Sprite(this.texture);
-        this.sprite.filters = [this.previewFilter];
-        this.pixiApp.stage.addChild(this.sprite);
-
-        this.domElement = this.texture.source.resource;
-        if (this.fileType.startsWith("video")) {
-            (this.domElement as HTMLVideoElement).pause();
-        }
-
-        this.scalePreview();
-        this.pixiApp.renderer.render(this.pixiApp.stage);
-
-        if (this.fileType.startsWith("video")) {
-            await this.generateVideoFilterMatrixes();
-            this.updatePreviewFilterBg();
-        } else {
-            this.filterMatrixes.push(this.getMatrixFromCurrentStage());
-        }
-        this.previewFilter.matrix = this.filterMatrixes[0];
 
         // TODO: set css to the css file
         this.pixiApp.canvas.style.width = "100%";
@@ -120,262 +45,91 @@ class UnderwaterCorrector {
         this.bindDomElements();
     }
 
-    bindDomElements() {
-        [gainCursorElement, greenBlueCursorElement, redCursorElement].forEach(
-            (e) => {
-                e.addEventListener("input", () => this.updatePreviewFilter());
-            }
-        );
+    extendPreviews(previews: UnloadedPreview[]) {
+        this.previews.push(...previews);
+    }
 
-        if (this.fileType.startsWith("video")) {
-            const video = this.domElement as HTMLVideoElement;
-            videoSeekCursorElement.max = video.duration.toString();
-            videoSeekCursorElement.addEventListener("input", () =>
-                this.videoSeekCursorInputListener()
-            );
-            this.domElement.addEventListener("timeupdate", () =>
-                this.videoTimeupdateListener()
-            );
-            playPauseButtonElement.addEventListener("click", () =>
-                this.videoTogglePlay()
-            );
+    async loadFirstPreview() {
+        this.currentPreviewIndex = 0;
+        await this.loadPreview(0);
+    }
+
+    async loadPreview(index: number) {
+        // TODO: add loaders
+        this.currentPreview = await this.previews[index].load(this);
+    }
+
+    setVideoControls(value: false): void;
+    setVideoControls(value: true, max: number): void;
+    setVideoControls(value: Boolean, max?: number): void {
+        // TODO: show/hide
+        if (value) {
+            videoSeekCursorElement.max = (max as number).toString();
+            videoSeekCursorElement.value = "0";
         }
-        exportButtonElement.addEventListener("click", () => this.download());
     }
 
-    scalePreview() {
-        const imageWidth = this.sprite.texture.width;
-        const imageHeight = this.sprite.texture.height;
-
-        // Scale the image to match the maximum dimension
-        const scaleX = previewMaxDimension / imageWidth;
-        const scaleY = previewMaxDimension / imageHeight;
-
-        const scale = Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
-
-        this.previewWidth = Math.round(imageWidth * scale);
-        this.previewHeight = Math.round(imageHeight * scale);
-
-        this.sprite.width = this.previewWidth;
-        this.sprite.height = this.previewHeight;
-
-        this.pixiApp.renderer.resize(this.previewWidth, this.previewHeight);
+    updateVideoSlider(value: number) {
+        videoSeekCursorElement.value = value.toString();
     }
 
-    async generateVideoFilterMatrixes() {
-        const video = this.domElement as HTMLVideoElement;
-        for (
-            let currentTime = 0;
-            currentTime < video.duration;
-            currentTime += videoMatrixInterval
+    seekVideo(value: number) {
+        if (
+            !this.currentPreview ||
+            !(this.currentPreview instanceof VideoPreview)
         ) {
-            const seekPromise = new Promise((resolve) => {
-                video.addEventListener("seeked", resolve, {
-                    once: true,
-                });
-            });
-            video.currentTime = currentTime;
-            await seekPromise;
-
-            this.filterMatrixes.push(this.getMatrixFromCurrentStage());
+            throw "Video seeking unsupported in the context";
         }
-        video.currentTime = 0;
-        video.play();
+        this.currentPreview.seek(value);
     }
-
-    // Static methods
-
-    static async exportLargeImage(
-        app: PIXI.Application,
-        sprite: PIXI.Sprite,
-        originalWidth: number,
-        originalHeight: number
-    ) {
-        // This function is used to export the final image chunk by chunk.
-        // We are doing this because on mobile devices, exporting the whole image at once could crash the device.
-        // So we generate small chunks that are placed into a larger canvas (that fit the original image size).
-        // TODO: some devices have a maximum canvas size (4096*4096 on iPhone X, 8192*8192 on iPhone 15), so we could set some maximum values to downscale the image...
-
-        const chunkSize = 2048; // Adjust based on device capabilities, chunks are chunkSize*chunkSize big.
-
-        const canvas = document.createElement("canvas");
-        canvas.width = originalWidth;
-        canvas.height = originalHeight;
-
-        const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-
-        for (let y = 0; y < originalHeight; y += chunkSize) {
-            for (let x = 0; x < originalWidth; x += chunkSize) {
-                const chunkWidth = Math.min(chunkSize, originalWidth - x);
-                const chunkHeight = Math.min(chunkSize, originalHeight - y);
-
-                const chunkSprite = new PIXI.Sprite(sprite.texture);
-                chunkSprite.filters = sprite.filters;
-                chunkSprite.x = -x;
-                chunkSprite.y = -y;
-
-                const renderTexture = PIXI.RenderTexture.create({
-                    width: chunkWidth,
-                    height: chunkHeight,
-                });
-
-                app.renderer.render({
-                    container: chunkSprite,
-                    target: renderTexture,
-                });
-                const chunkCanvas = app.renderer.extract.canvas(
-                    renderTexture
-                ) as HTMLCanvasElement;
-                ctx.drawImage(chunkCanvas, x, y);
-
-                renderTexture.destroy();
-            }
+    togglePlayPauseVideo() {
+        if (
+            !this.currentPreview ||
+            !(this.currentPreview instanceof VideoPreview)
+        ) {
+            throw "Video seeking unsupported in the context";
         }
-
-        return canvas;
-    }
-
-    static getTweakedMatrix(matrix: PIXI.ColorMatrix): PIXI.ColorMatrix {
-        // Function the get the positions from the cursors, and change the matrix value using the magic matrixes
-        let lessBlue: number,
-            lessGreen: number,
-            lessRed: number,
-            moreRed: number;
-        lessBlue = lessGreen = lessRed = moreRed = 0;
-
-        // Cursors go from negative to positive value. Depending of their position, we want to remove green or to remove green.
-        if (Number(greenBlueCursorElement.value) < 0) {
-            lessBlue = Math.abs(Number(greenBlueCursorElement.value));
-        } else {
-            lessGreen = Number(greenBlueCursorElement.value);
-        }
-        if (Number(redCursorElement.value) < 0) {
-            lessRed = Math.abs(Number(redCursorElement.value));
-        } else {
-            moreRed = Number(redCursorElement.value);
-        }
-
-        // We calculate a new matrix based on the original matrix generated from the algorithm.
-        const tweakedMatrix = matrix.map(
-            (value, i) =>
-                identity[i] +
-                Number(gainCursorElement.value) * (value - identity[i]) +
-                lessBlue * magicLessBlue[i] +
-                lessGreen * magicLessGreen[i] +
-                moreRed * magicMoreRed[i] +
-                lessRed * magicLessRed[i]
-        );
-
-        return tweakedMatrix as PIXI.ColorMatrix;
-    }
-
-    // Utility methods
-
-    getMatrixFromCurrentStage(): PIXI.ColorMatrix {
-        const pixels = this.pixiApp.renderer.extract.pixels(this.pixiApp.stage);
-
-        const filterMatrix = getColorFilterMatrix(
-            pixels.pixels,
-            pixels.width,
-            pixels.height
-        );
-
-        return filterMatrix as PIXI.ColorMatrix;
-    }
-
-    updatePreviewFilter() {
-        let index;
-        if (this.fileType.startsWith("video")) {
-            const video = this.domElement as HTMLVideoElement;
-            index = Math.floor(video.currentTime / videoMatrixInterval);
-        } else {
-            // For images, the filter is always at index 0.
-            index = 0;
-        }
-        this.previewFilter.matrix = UnderwaterCorrector.getTweakedMatrix(
-            this.filterMatrixes[index]
-        );
-    }
-
-    // Other methods
-
-    updatePreviewFilterBg() {
-        /*
-        We use different matrix for video files.
-        This "background function" will constantly update the filter matrix while viewing video files.
-        requestAnimationFrame will call the function passed in argument at the next time the screen is refreshed.
-        */
-        const video = this.domElement as HTMLVideoElement;
-        let previousIndex = 0;
-        const self = this;
-        function update() {
-            const index = Math.floor(video.currentTime / videoMatrixInterval);
-            if (previousIndex != index) {
-                previousIndex = index;
-                self.updatePreviewFilter();
-            }
-            requestAnimationFrame(update);
-        }
-        requestAnimationFrame(update);
-    }
-
-    videoTimeupdateListener() {
-        const video = this.domElement as HTMLVideoElement;
-        videoSeekCursorElement.value = video.currentTime.toString();
-    }
-
-    videoSeekCursorInputListener() {
-        const video = this.domElement as HTMLVideoElement;
-        video.currentTime = Number(videoSeekCursorElement.value);
-    }
-
-    videoTogglePlay() {
-        const video = this.domElement as HTMLVideoElement;
-        const videoIsPlaying =
-            video.currentTime > 0 &&
-            !video.paused &&
-            !video.ended &&
-            video.readyState > 2;
-
-        if (videoIsPlaying) {
-            video.pause();
-        } else {
-            video.play();
-        }
+        this.currentPreview.togglePlayPause();
     }
 
     async download() {
-        const a = document.createElement("a");
-
-        const dotI = this.originalFileName.lastIndexOf(".");
-        const name = this.originalFileName.substring(0, dotI);
-        a.download = `${name}-edited.jpg`;
-
-        // We create a new sprite with the original dimensions (no downscale)
-        const texture = await PIXI.Assets.load(this.originalFileData);
-        const originalWidth = texture.width;
-        const originalHeight = texture.height;
-        const sprite = new PIXI.Sprite(texture);
-        const filter = new PIXI.ColorMatrixFilter();
-        filter.matrix = UnderwaterCorrector.getTweakedMatrix(
-            this.filterMatrixes[0]
-        );
-        sprite.filters = [filter];
-
-        const canvas = await UnderwaterCorrector.exportLargeImage(
-            this.pixiApp,
-            sprite,
-            originalWidth,
-            originalHeight
-        );
-        let jpegData = canvas.toDataURL("image/jpeg", 0.9);
-        jpegData = piexif.insert(this.metadatas, jpegData);
-
-        // TODO: add the original metadata to the generated media
-        a.href = jpegData;
-        a.click();
+        if (!this.currentPreview) {
+            throw "Download shouldn't be clickable before loading any media.";
+        }
+        await this.currentPreview.download();
     }
+
+    updateMatrix() {
+        if (!this.currentPreview) {
+            throw "Matrix tweak shouldn't be usable before loading any media.";
+        }
+        this.tweakParameters.gain = Number(gainCursorElement.value);
+        this.tweakParameters.greenBlue = Number(greenBlueCursorElement.value);
+        this.tweakParameters.red = Number(redCursorElement.value);
+        this.currentPreview.updateFilter();
+    }
+
+    bindDomElements() {
+        [gainCursorElement, greenBlueCursorElement, redCursorElement].forEach(
+            (e) => {
+                e.addEventListener("input", () => this.updateMatrix());
+            }
+        );
+        videoSeekCursorElement.addEventListener("input", (e) => {
+            // @ts-ignore // TODO
+            this.seekVideo(e.target.value);
+        });
+        playPauseButtonElement.addEventListener("click", () =>
+            this.togglePlayPauseVideo()
+        );
+        exportButtonElement.addEventListener("click", () => this.download());
+    }
+    // TODO
+    // this.pixiApp.renderer.render(this.pixiApp.stage);
+    // this.pixiApp.stage.addChild(this.sprite);
 }
+
+const app = new UnderwaterCorrectorApp();
 
 document.querySelectorAll(".drop-zone__input").forEach((element) => {
     const inputElement = element as HTMLInputElement;
@@ -400,56 +154,35 @@ document.querySelectorAll(".drop-zone__input").forEach((element) => {
         });
     });
 
-    function fileUploadEventHandler(file: any) {
-        if (file) {
-            handleFile(file);
+    function fileUploadEventHandler(files: FileList | null) {
+        if (files) {
+            handleFile(files);
             dropZoneElement.classList.add("hidden");
         }
     }
-    dropZoneElement.addEventListener("drop", (e) => {
+    dropZoneElement.addEventListener("drop", (_e) => {
+        const e = _e as DragEvent;
         e.preventDefault();
-        const file = e.dataTransfer?.files[0];
-        fileUploadEventHandler(file);
+        if (!e.dataTransfer) {
+            return;
+        }
+        fileUploadEventHandler(e.dataTransfer?.files);
     });
-    dropZoneElement.addEventListener("change", (e) => {
-        // @ts-ignore
-        const file = e.target.files[0];
-        fileUploadEventHandler(file);
+    dropZoneElement.addEventListener("change", (_e) => {
+        const e = _e as DropzoneChangeEvent;
+        fileUploadEventHandler(e.target.files);
     });
 });
 
-async function handleFile(file: any) {
+async function handleFile(files: FileList) {
     // Handle dropped file
     imageZone.classList.remove("hidden");
-    const fileType: string = file.type;
 
-    let metadatas = null;
-    if (fileType === "image/jpeg") {
-        // console.log("using piexif");
-        const newReader = new FileReader();
-        const loadPromise = new Promise((resolve) => {
-            newReader.onload = resolve;
-        });
-        newReader.readAsDataURL(file);
-        await loadPromise;
-        // console.log(piexif.load(newReader.result));
-        metadatas = piexif.dump(piexif.load(newReader.result));
+    const previews = Array.from(files).map((f) => new UnloadedPreview(f));
+    app.extendPreviews(previews);
+    if (!app.currentPreview) {
+        await app.loadFirstPreview();
     }
-    const reader = new FileReader();
-    const loadPromise = new Promise((resolve) => {
-        reader.onload = resolve;
-    });
-    reader.readAsArrayBuffer(file);
-    await loadPromise;
 
-    if (fileType.startsWith("image") && fileType !== "image/jpeg") {
-        const tags = await ExifReader.load(reader.result);
-        // console.log(exifReaderToPiexif(tags));
-        metadatas = piexif.dump(exifReaderToPiexif(tags));
-    }
-    // @ts-ignore (flemme)
-    const blob = new Blob([reader.result], { type: file.type });
-    const url = URL.createObjectURL(blob);
-    // console.log(metadatas);
-    new UnderwaterCorrector(url, fileType, file.name, metadatas);
+    // new UnderwaterCorrector(url, fileType, file.name, metadatas);
 }
