@@ -3,20 +3,17 @@ import { Preview, UnloadedPreview, VideoPreview } from "./previews";
 
 // UI elements
 const imageZone = document.getElementById("image-zone") as HTMLImageElement;
-const exportButtonElement = document.getElementById(
-    "export-button"
-) as HTMLInputElement;
-const playPauseButtonElement = document.getElementById(
-    "play-pause"
-) as HTMLInputElement;
+const exportButtonElement = document.getElementById("export-button") as HTMLInputElement;
+const nextButtonElement = document.getElementById("next-media") as HTMLInputElement;
+const previousButtonElement = document.getElementById("previous-media") as HTMLInputElement;
+const playPauseButtonElement = document.getElementById("play-pause") as HTMLInputElement;
 const gainCursorElement = document.getElementById("gain") as HTMLInputElement;
-const greenBlueCursorElement = document.getElementById(
-    "greenblue"
-) as HTMLInputElement;
+const greenBlueCursorElement = document.getElementById("greenblue") as HTMLInputElement;
 const redCursorElement = document.getElementById("red") as HTMLInputElement;
-const videoSeekCursorElement = document.getElementById(
-    "video-seek"
-) as HTMLInputElement;
+const videoSeekCursorElement = document.getElementById("video-seek") as HTMLInputElement;
+
+const videoControls = document.getElementsByClassName("video-control");
+console.log(videoControls);
 
 export class UnderwaterCorrectorApp {
     pixiApp!: PIXI.Application;
@@ -47,46 +44,86 @@ export class UnderwaterCorrectorApp {
 
     extendPreviews(previews: UnloadedPreview[]) {
         this.previews.push(...previews);
+        if (this.previews.length > 0) {
+            [gainCursorElement, greenBlueCursorElement, redCursorElement, exportButtonElement].forEach(
+                (e) => (e.disabled = false)
+            );
+        }
+        if (this.previews.length > 1) {
+            nextButtonElement.classList.remove("hidden");
+            previousButtonElement.classList.remove("hidden");
+        }
     }
 
     async loadFirstPreview() {
         this.currentPreviewIndex = 0;
-        await this.loadPreview(0);
+        await this.loadPreview();
     }
 
-    async loadPreview(index: number) {
-        // TODO: add loaders
-        this.currentPreview = await this.previews[index].load(this);
+    async loadPreview() {
+        if (this.currentPreviewIndex === null) {
+            throw "This is impossible !";
+        }
+        this.currentPreview?.detach();
+        const previewLoader = this.previews[this.currentPreviewIndex];
+        this.setVideoControls(previewLoader.type === "video");
+        this.currentPreview = await previewLoader.load(this);
+        this.currentPreview.attach();
     }
 
-    setVideoControls(value: false): void;
-    setVideoControls(value: true, max: number): void;
-    setVideoControls(value: Boolean, max?: number): void {
-        // TODO: show/hide
+    async nextPreview() {
+        if (this.currentPreviewIndex === null) {
+            throw "Don't click next until you loaded some images !";
+        }
+        const newIndex = this.currentPreviewIndex + 1;
+        if (newIndex >= this.previews.length) {
+            this.currentPreviewIndex = 0;
+        } else {
+            this.currentPreviewIndex = newIndex;
+        }
+        await this.loadPreview();
+    }
+    async previousPreview() {
+        console.log(PIXI.Assets);
+        if (this.currentPreviewIndex === null) {
+            throw "Don't click next until you loaded some images !";
+        }
+        const newIndex = this.currentPreviewIndex - 1;
+        if (newIndex < 0) {
+            this.currentPreviewIndex = this.previews.length - 1;
+        } else {
+            this.currentPreviewIndex = newIndex;
+        }
+        await this.loadPreview();
+    }
+
+    setVideoControls(value: Boolean): void {
         if (value) {
-            videoSeekCursorElement.max = (max as number).toString();
+            for (let element of videoControls) {
+                element.classList.remove("hidden");
+            }
             videoSeekCursorElement.value = "0";
+        } else {
+            for (let element of videoControls) {
+                element.classList.add("hidden");
+                console.log(element);
+            }
         }
     }
 
-    updateVideoSlider(value: number) {
+    updateVideoSlider(value: number, max: number) {
         videoSeekCursorElement.value = value.toString();
+        videoSeekCursorElement.max = max.toString();
     }
 
     seekVideo(value: number) {
-        if (
-            !this.currentPreview ||
-            !(this.currentPreview instanceof VideoPreview)
-        ) {
+        if (this.currentPreview === null || !(this.currentPreview instanceof VideoPreview)) {
             throw "Video seeking unsupported in the context";
         }
         this.currentPreview.seek(value);
     }
     togglePlayPauseVideo() {
-        if (
-            !this.currentPreview ||
-            !(this.currentPreview instanceof VideoPreview)
-        ) {
+        if (this.currentPreview === null || !(this.currentPreview instanceof VideoPreview)) {
             throw "Video seeking unsupported in the context";
         }
         this.currentPreview.togglePlayPause();
@@ -110,19 +147,17 @@ export class UnderwaterCorrectorApp {
     }
 
     bindDomElements() {
-        [gainCursorElement, greenBlueCursorElement, redCursorElement].forEach(
-            (e) => {
-                e.addEventListener("input", () => this.updateMatrix());
-            }
-        );
+        [gainCursorElement, greenBlueCursorElement, redCursorElement].forEach((e) => {
+            e.addEventListener("input", () => this.updateMatrix());
+        });
         videoSeekCursorElement.addEventListener("input", (e) => {
             // @ts-ignore // TODO
             this.seekVideo(e.target.value);
         });
-        playPauseButtonElement.addEventListener("click", () =>
-            this.togglePlayPauseVideo()
-        );
+        playPauseButtonElement.addEventListener("click", () => this.togglePlayPauseVideo());
         exportButtonElement.addEventListener("click", () => this.download());
+        nextButtonElement.addEventListener("click", () => app.nextPreview());
+        previousButtonElement.addEventListener("click", () => app.previousPreview());
     }
     // TODO
     // this.pixiApp.renderer.render(this.pixiApp.stage);
@@ -130,14 +165,13 @@ export class UnderwaterCorrectorApp {
 }
 
 const app = new UnderwaterCorrectorApp();
+await app.init();
 
 document.querySelectorAll(".drop-zone__input").forEach((element) => {
     const inputElement = element as HTMLInputElement;
 
     // Handle file drop
-    const dropZoneElement = inputElement.closest(
-        ".drop-zone"
-    ) as HTMLDivElement;
+    const dropZoneElement = inputElement.closest(".drop-zone") as HTMLDivElement;
 
     dropZoneElement.addEventListener("click", () => {
         inputElement.click();

@@ -50,7 +50,7 @@ export class UnloadedPreview {
             await loadPromise;
             metadatas = piexif.dump(piexif.load(newReader.result));
         } else if (this.file.type.startsWith("image")) {
-            const tags = await ExifReader.load(reader.result);
+            const tags = ExifReader.load(reader.result);
             metadatas = piexif.dump(exifReaderToPiexif(tags));
         }
 
@@ -58,22 +58,15 @@ export class UnloadedPreview {
         const blob = new Blob([reader.result], { type: this.file.type });
         const url = URL.createObjectURL(blob);
 
+        let preview;
         if (this.type === "video") {
-            return new VideoPreview(
-                app,
-                url,
-                this.file.type,
-                this.file.name,
-                metadatas
-            );
+            preview = new VideoPreview(app, url, this.file.type, this.file.name, metadatas);
+        } else {
+            preview = new PhotoPreview(app, url, this.file.type, this.file.name, metadatas);
         }
-        return new PhotoPreview(
-            app,
-            url,
-            this.file.type,
-            this.file.name,
-            metadatas
-        );
+        await preview.init();
+        URL.revokeObjectURL(url);
+        return preview;
     }
 }
 
@@ -92,13 +85,9 @@ export class Preview {
     previewWidth!: number;
     previewHeight!: number;
 
-    constructor(
-        app: UnderwaterCorrectorApp,
-        fileData: any,
-        fileType: string,
-        fileName: string,
-        metadatas?: any
-    ) {
+    onload?: () => any;
+
+    constructor(app: UnderwaterCorrectorApp, fileData: any, fileType: string, fileName: string, metadatas?: any) {
         this.app = app;
         this.originalFileData = fileData;
         this.originalFileName = fileName;
@@ -108,47 +97,35 @@ export class Preview {
         // An array of matrix filter. When the target is an image, this is a single-element matrix.
         // When the target is a video, there is one matrix generated for every 2 seconds of video.
         this.filterMatrixes = new Array();
-        this.init();
     }
 
     // One-time call methods (initialisation)
 
     async init() {
-        this.texture = await PIXI.Assets.load({
-            src: this.originalFileData,
-            loadParser: this.fileType.startsWith("video")
-                ? "loadVideo"
-                : "loadTextures",
-        });
+        await this.loadTexture();
         this.sprite = new PIXI.Sprite(this.texture);
 
         this.previewFilter = new PIXI.ColorMatrixFilter();
         this.sprite.filters = [this.previewFilter];
 
-        this.domElement = this.texture.source.resource;
-        if (this.fileType.startsWith("video")) {
-            (this.domElement as HTMLVideoElement).pause();
-        }
-
         this.scalePreview();
         await this.generateMatrixes();
-
-        // TODO
-        // if (this.fileType.startsWith("video")) {
-        //     await this.generateVideoFilterMatrixes();
-        //     this.updatePreviewFilterBg();
-        // } else {
-        //     this.filterMatrixes.push(this.getMatrixFromCurrentStage());
-        // }
         this.previewFilter.matrix = this.filterMatrixes[0];
+
+        this.bindDomEvents();
     }
 
+    async loadTexture() {
+        // Should init this.texture and this.domElement.
+        throw "Not implements !";
+    }
     async generateMatrixes() {
         throw "Not implemented !";
     }
     updateFilter() {
         throw "Not implemented !";
     }
+    bindDomEvents() {}
 
     scalePreview() {
         const imageWidth = this.sprite.texture.width;
@@ -167,15 +144,17 @@ export class Preview {
         this.sprite.height = this.previewHeight;
     }
 
-    attach(app: PIXI.Application) {
-        this.resizeApp(app);
+    attach() {
+        this.app.pixiApp.renderer.resize(this.previewWidth, this.previewHeight);
+        this.app.pixiApp.stage.addChild(this.sprite);
     }
-    detach(app: PIXI.Application) {
-        app;
-    }
-
-    resizeApp(app: PIXI.Application) {
-        app.renderer.resize(this.previewWidth, this.previewHeight);
+    detach() {
+        this.app.pixiApp.stage.removeChild(this.sprite);
+        PIXI.Assets.unload(this.originalFileData);
+        // this.texture.destroy(true);
+        // this.sprite.destroy({ texture: true, textureSource: true });
+        // this.texture.destroy();
+        // this.previewFilter.destroy();
     }
 
     // Utility methods
@@ -184,19 +163,12 @@ export class Preview {
         const container = new PIXI.Container();
         container.addChild(this.sprite);
         const pixels = this.app.pixiApp.renderer.extract.pixels(container);
+        console.log(pixels.height);
+        console.log(pixels.width);
 
-        const filterMatrix = getColorFilterMatrix(
-            pixels.pixels,
-            pixels.width,
-            pixels.height
-        );
+        const filterMatrix = getColorFilterMatrix(pixels.pixels, pixels.width, pixels.height);
 
         return filterMatrix as PIXI.ColorMatrix;
-    }
-
-    getTweakedMatrix(matrix: PIXI.ColorMatrix) {
-        // TODO
-        return matrix;
     }
 
     async download() {
@@ -212,15 +184,10 @@ export class Preview {
         const originalHeight = texture.height;
         const sprite = new PIXI.Sprite(texture);
         const filter = new PIXI.ColorMatrixFilter();
-        filter.matrix = this.getTweakedMatrix(this.filterMatrixes[0]);
+        filter.matrix = getTweakedMatrix(this.filterMatrixes[0], this.app.tweakParameters);
         sprite.filters = [filter];
 
-        const canvas = await exportLargeImage(
-            this.app.pixiApp,
-            sprite,
-            originalWidth,
-            originalHeight
-        );
+        const canvas = await exportLargeImage(this.app.pixiApp, sprite, originalWidth, originalHeight);
         let jpegData = canvas.toDataURL("image/jpeg", 0.9);
         jpegData = piexif.insert(this.metadatas, jpegData);
 
@@ -232,19 +199,27 @@ export class Preview {
 export class PhotoPreview extends Preview {
     declare domElement: HTMLVideoElement;
 
+    async loadTexture() {
+        // this.texture = PIXI.Texture.from(this.originalFileData);
+        this.texture = await PIXI.Assets.load({
+            src: this.originalFileData,
+            loadParser: "loadTextures",
+        });
+        this.domElement = this.texture.source.resource;
+    }
+
     updateFilter() {
-        // TODO
-        this.previewFilter.matrix = getTweakedMatrix(
-            this.filterMatrixes[0],
-            this.app.tweakParameters.gain,
-            this.app.tweakParameters.greenBlue,
-            this.app.tweakParameters.red
-        );
+        this.previewFilter.matrix = getTweakedMatrix(this.filterMatrixes[0], this.app.tweakParameters);
+    }
+
+    async generateMatrixes() {
+        this.filterMatrixes.push(this.getInitialMatrix());
     }
 }
 
 export class VideoPreview extends Preview {
     backgroundUpdaterEnabled: boolean;
+    multipleFiltersEnabled: boolean;
     declare domElement: HTMLVideoElement;
 
     constructor(
@@ -252,37 +227,53 @@ export class VideoPreview extends Preview {
         fileData: any,
         fileType: string,
         fileName: string,
-        metadatas?: any
+        metadatas?: any,
+        multipleFilters: boolean = false
     ) {
         super(app, fileData, fileType, fileName, metadatas);
+        this.multipleFiltersEnabled = multipleFilters;
         this.backgroundUpdaterEnabled = false;
+    }
+
+    async loadTexture() {
+        this.texture = await PIXI.Assets.load({
+            src: this.originalFileData,
+            loadParser: "loadVideo",
+        });
+        this.domElement = this.texture.source.resource;
+        this.domElement.pause();
     }
 
     async generateMatrixes() {
-        const video = this.domElement as HTMLVideoElement;
-        for (
-            let currentTime = 0;
-            currentTime < video.duration;
-            currentTime += videoMatrixInterval
-        ) {
-            const seekPromise = new Promise((resolve) => {
-                video.addEventListener("seeked", resolve, {
-                    once: true,
+        if (this.multipleFiltersEnabled) {
+            for (let currentTime = 0; currentTime < this.domElement.duration; currentTime += videoMatrixInterval) {
+                const seekPromise = new Promise((resolve) => {
+                    this.domElement.addEventListener("seeked", resolve, {
+                        once: true,
+                    });
                 });
-            });
-            video.currentTime = currentTime;
-            await seekPromise;
-
+                this.domElement.currentTime = currentTime;
+                await seekPromise;
+                this.filterMatrixes.push(this.getInitialMatrix());
+            }
+            this.domElement.currentTime = 0;
+        } else {
             this.filterMatrixes.push(this.getInitialMatrix());
         }
-        video.currentTime = 0;
-        video.play();
+        await this.domElement.play();
     }
 
-    enablePreview(app: PIXI.Application): void {
-        this.enablePreview(app);
+    attach(): void {
+        if (this.multipleFiltersEnabled) {
+            this.backgroundUpdaterEnabled = true;
+            this.updatePreviewFilterBg();
+        }
+        super.attach();
+    }
+
+    detach() {
         this.backgroundUpdaterEnabled = false;
-        this.updatePreviewFilterBg();
+        super.detach();
     }
 
     updatePreviewFilterBg() {
@@ -308,29 +299,22 @@ export class VideoPreview extends Preview {
     }
 
     updateFilter() {
-        const video = this.domElement;
-        const index = Math.floor(video.currentTime / videoMatrixInterval);
-        // TODO
-        this.previewFilter.matrix = getTweakedMatrix(
-            this.filterMatrixes[index],
-            this.app.tweakParameters.gain,
-            this.app.tweakParameters.greenBlue,
-            this.app.tweakParameters.red
-        );
+        let index;
+        if (this.multipleFiltersEnabled) {
+            index = Math.floor(this.domElement.currentTime / videoMatrixInterval);
+        } else {
+            index = 0;
+        }
+        this.previewFilter.matrix = getTweakedMatrix(this.filterMatrixes[index], this.app.tweakParameters);
     }
 
     seek(value: number) {
-        value;
-        // TODO
+        this.domElement.currentTime = value;
     }
 
     togglePlayPause() {
         const video = this.domElement;
-        const videoIsPlaying =
-            video.currentTime > 0 &&
-            !video.paused &&
-            !video.ended &&
-            video.readyState > 2;
+        const videoIsPlaying = video.currentTime > 0 && !video.paused && !video.ended && video.readyState > 2;
 
         if (videoIsPlaying) {
             video.pause();
@@ -340,10 +324,8 @@ export class VideoPreview extends Preview {
     }
 
     bindDomEvents() {
-        // TODO
-        this.domElement.addEventListener("timeupdate", () =>
-            // this.app.updateVideoSlider()
-            {}
-        );
+        this.domElement.addEventListener("timeupdate", () => {
+            this.app.updateVideoSlider(this.domElement.currentTime, this.domElement.duration);
+        });
     }
 }

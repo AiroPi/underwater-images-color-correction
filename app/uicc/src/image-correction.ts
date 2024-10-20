@@ -198,9 +198,7 @@ function normalizingInterval(normArray: number[]) {
 
 export function getTweakedMatrix(
     matrix: ColorMatrix,
-    gain: number,
-    greenBlueValue: number,
-    redValue: number
+    tweakParameyers: TweakParametersT
 ): ColorMatrix {
     // TODO: add infos about the 3 values
     // Function the get the positions from the cursors, and change the matrix value using the magic matrixes
@@ -208,22 +206,22 @@ export function getTweakedMatrix(
     lessBlue = lessGreen = lessRed = moreRed = 0;
 
     // Cursors go from negative to positive value. Depending of their position, we want to remove green or to remove green.
-    if (greenBlueValue < 0) {
-        lessBlue = Math.abs(greenBlueValue);
+    if (tweakParameyers.greenBlue < 0) {
+        lessBlue = Math.abs(tweakParameyers.greenBlue);
     } else {
-        lessGreen = Number(greenBlueValue);
+        lessGreen = tweakParameyers.greenBlue;
     }
-    if (redValue < 0) {
-        lessRed = Math.abs(redValue);
+    if (tweakParameyers.red < 0) {
+        lessRed = Math.abs(tweakParameyers.red);
     } else {
-        moreRed = Number(redValue);
+        moreRed = tweakParameyers.red;
     }
 
     // We calculate a new matrix based on the original matrix generated from the algorithm.
     const tweakedMatrix = matrix.map(
         (value, i) =>
             identity[i] +
-            Number(gain) * (value - identity[i]) +
+            tweakParameyers.gain * (value - identity[i]) +
             lessBlue * magicLessBlue[i] +
             lessGreen * magicLessGreen[i] +
             moreRed * magicMoreRed[i] +
