@@ -57,10 +57,15 @@ body {
     margin-top: 5px;
 }
 
+.sidebar__buttons {
+    display: flex;
+    flex-direction: column;
+    flex-basis: 10px;
+}
+
 .sidebar__buttons input[type="button"] {
     background-color: #555555;
     width: 100%;
-    border-radius: 8px;
     border-color: #555555;
     color: white;
     padding: 15px 32px;
@@ -72,8 +77,8 @@ body {
     justify-content: flex-end;
     cursor: pointer;
     transition-duration: 0.4s;
+    border-style: solid;
 }
-
 
 .sidebar__buttons input[type="button"]:hover {
     background-color: white;
@@ -142,4 +147,11 @@ body {
 
 .hidden {
     display: none !important;
+}
+
+
+#preview-navigation {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
 }
