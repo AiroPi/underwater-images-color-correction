@@ -11,9 +11,10 @@ const gainCursorElement = document.getElementById("gain") as HTMLInputElement;
 const greenBlueCursorElement = document.getElementById("greenblue") as HTMLInputElement;
 const redCursorElement = document.getElementById("red") as HTMLInputElement;
 const videoSeekCursorElement = document.getElementById("video-seek") as HTMLInputElement;
+const previewNumberLabel = document.getElementById("preview-number-label") as HTMLDivElement;
 
 const videoControls = document.getElementsByClassName("video-control");
-console.log(videoControls);
+const multipleMediaControls = document.getElementsByClassName("multiple-media-controls");
 
 export class UnderwaterCorrectorApp {
     pixiApp!: PIXI.Application;
@@ -50,8 +51,11 @@ export class UnderwaterCorrectorApp {
             );
         }
         if (this.previews.length > 1) {
-            nextButtonElement.classList.remove("hidden");
-            previousButtonElement.classList.remove("hidden");
+            for (let e of multipleMediaControls) {
+                e.classList.remove("hidden");
+            }
+            const nb = this.currentPreviewIndex ? this.currentPreviewIndex + 1 : 1;
+            previewNumberLabel.textContent = `Media ${nb}/${this.previews.length}`;
         }
     }
 
@@ -64,6 +68,7 @@ export class UnderwaterCorrectorApp {
         if (this.currentPreviewIndex === null) {
             throw "This is impossible !";
         }
+        previewNumberLabel.textContent = `Media ${this.currentPreviewIndex + 1}/${this.previews.length}`;
         this.currentPreview?.detach();
         const previewLoader = this.previews[this.currentPreviewIndex];
         this.setVideoControls(previewLoader.type === "video");
