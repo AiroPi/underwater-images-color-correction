@@ -129,6 +129,11 @@ export class UnderwaterCorrectorApp {
         this.currentPreview.togglePlayPause();
     }
 
+    resetCursor(element: HTMLInputElement) {
+        element.value = element.defaultValue;
+        this.updateMatrix();
+    }
+
     async download() {
         if (!this.currentPreview) {
             throw "Download shouldn't be clickable before loading any media.";
@@ -149,6 +154,7 @@ export class UnderwaterCorrectorApp {
     bindDomElements() {
         [gainCursorElement, greenBlueCursorElement, redCursorElement].forEach((e) => {
             e.addEventListener("input", () => this.updateMatrix());
+            e.addEventListener("dblclick", () => this.resetCursor(e));
         });
         videoSeekCursorElement.addEventListener("input", (e) => {
             // @ts-ignore // TODO

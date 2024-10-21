@@ -145,6 +145,7 @@ export class Preview {
     }
 
     attach() {
+        this.updateFilter();
         this.app.pixiApp.renderer.resize(this.previewWidth, this.previewHeight);
         this.app.pixiApp.stage.addChild(this.sprite);
     }
