@@ -1,3 +1,7 @@
+/// <reference types="vite/client" />
+
+declare module "piexifjs";
+
 interface DropzoneChangeEvent extends Event {
     target: HTMLInputElement;
 }
