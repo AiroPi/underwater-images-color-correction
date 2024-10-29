@@ -1,5 +1,25 @@
 // This code is from https://github.com/nikolajbech/underwater-image-color-correction
 
+import { ColorMatrix } from "pixi.js";
+
+// These are "magic" matrix used later to tweak the filter matrix.
+const magicLessBlue: ColorMatrix = [
+    0, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 1, 0, -1.3, 0, 0, 0, 0, 0,
+];
+const magicLessGreen: ColorMatrix = [
+    0, 0, 0, 0, 0, 0, 1, 0, 0, -1.3, 0, 0, 0.3, 0, 0, 0, 0, 0, 0, 0,
+];
+const magicMoreRed: ColorMatrix = [
+    0.8, 0.7, 0.5, 0, -1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+const magicLessRed: ColorMatrix = [
+    -0.8, -0.7, -0.5, 0, 1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
+const identity: ColorMatrix = [
+    1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+];
+
 type HistogramT = { r: number[]; g: number[]; b: number[] };
 type IntervalT = { low: number; high: number };
 type AdjustT = { r: IntervalT; g: IntervalT; b: IntervalT };
@@ -174,4 +194,39 @@ function normalizingInterval(normArray: number[]) {
     }
 
     return { low, high };
+}
+
+export function getTweakedMatrix(
+    matrix: ColorMatrix,
+    tweakParameyers: TweakParametersT
+): ColorMatrix {
+    // TODO: add infos about the 3 values
+    // Function the get the positions from the cursors, and change the matrix value using the magic matrixes
+    let lessBlue: number, lessGreen: number, lessRed: number, moreRed: number;
+    lessBlue = lessGreen = lessRed = moreRed = 0;
+
+    // Cursors go from negative to positive value. Depending of their position, we want to remove green or to remove green.
+    if (tweakParameyers.greenBlue < 0) {
+        lessBlue = Math.abs(tweakParameyers.greenBlue);
+    } else {
+        lessGreen = tweakParameyers.greenBlue;
+    }
+    if (tweakParameyers.red < 0) {
+        lessRed = Math.abs(tweakParameyers.red);
+    } else {
+        moreRed = tweakParameyers.red;
+    }
+
+    // We calculate a new matrix based on the original matrix generated from the algorithm.
+    const tweakedMatrix = matrix.map(
+        (value, i) =>
+            identity[i] +
+            tweakParameyers.gain * (value - identity[i]) +
+            lessBlue * magicLessBlue[i] +
+            lessGreen * magicLessGreen[i] +
+            moreRed * magicMoreRed[i] +
+            lessRed * magicLessRed[i]
+    );
+
+    return tweakedMatrix as ColorMatrix;
 }

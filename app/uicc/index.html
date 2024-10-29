@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Drop Zone with Sidebar</title>
-    <link rel="stylesheet" href="src/style.css">
+    <link rel="stylesheet" href="src/css/style.css">
 </head>
 
 <body>
@@ -15,7 +15,7 @@
                 <div class="drop-zone__prompt">
                     <p>Drag & drop your image here, or click to select one</p>
                 </div>
-                <input type="file" class="drop-zone__input" accept="video/*,image/*">
+                <input type="file" class="drop-zone__input" accept="video/*,image/*" multiple="multiple">
             </div>
             <div id="image-zone" class="image-zone hidden">
             </div>
@@ -25,21 +25,27 @@
             <div class="sidebar__content">
                 <h3>Edit Image</h3>
                 <label for="gain">Gain :</label>
-                <input type="range" id="gain" name="gain" min="0" max="2" step="0.01" value="1">
+                <input type="range" id="gain" name="gain" min="0" max="2" step="0.01" value="1" disabled>
 
                 <label for="greenblue">Blue and green :</label>
-                <input type="range" id="greenblue" name="greenblue" min="-0.25" max="0.25" step="0.01" value="0">
+                <input type="range" id="greenblue" name="greenblue" min="-0.25" max="0.25" step="0.01" value="0"
+                    disabled>
 
                 <label for="red">Red :</label>
-                <input type="range" id="red" name="red" min="-0.25" max="0.25" step="0.01" value="0">
+                <input type="range" id="red" name="red" min="-0.25" max="0.25" step="0.01" value="0" disabled>
 
-                <label for="video-seek">Video seek :</label>
-                <input type="range" id="video-seek" name="video-seek" min="0" max="1" step="0.1" value="0">
+                <label for="video-seek" class="video-control hidden">Video seek :</label>
+                <input type="range" id="video-seek" name="video-seek" class="video-control hidden" min="0" step="0.1">
             </div>
 
             <div class="sidebar__buttons">
-                <input id="play-pause" type="button" class="button" value="Play/Pause">
-                <input id="export-button" type="button" class="button" value="Export">
+                <div id="preview-number-label" class="multiple-media-controls hidden">Preview 1/x :</div>
+                <div id="preview-navigation" class="multiple-media-controls hidden">
+                    <input id="previous-media" type="button" class="button" value="⬅️">
+                    <input id="next-media" type="button" class="button" value="➡️">
+                </div>
+                <input id="play-pause" type="button" class="button video-control hidden" value="Play/Pause">
+                <input id="export-button" type="button" class="button" value="Export" disabled>
             </div>
         </div>
     </div>
