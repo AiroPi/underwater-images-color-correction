@@ -1,5 +1,5 @@
 import * as PIXI from "pixi.js";
-import { Preview, UnloadedPreview, VideoPreview } from "./previews";
+import { Preview, UnloadedPreview, VideoPreview } from "./script/previews";
 
 // UI elements
 const imageZone = document.getElementById("image-zone") as HTMLImageElement;
@@ -89,7 +89,6 @@ export class UnderwaterCorrectorApp {
         await this.loadPreview();
     }
     async previousPreview() {
-        console.log(PIXI.Assets);
         if (this.currentPreviewIndex === null) {
             throw "Don't click next until you loaded some images !";
         }
@@ -111,7 +110,6 @@ export class UnderwaterCorrectorApp {
         } else {
             for (let element of videoControls) {
                 element.classList.add("hidden");
-                console.log(element);
             }
         }
     }
@@ -167,16 +165,13 @@ export class UnderwaterCorrectorApp {
         });
         playPauseButtonElement.addEventListener("click", () => this.togglePlayPauseVideo());
         exportButtonElement.addEventListener("click", () => this.download());
-        nextButtonElement.addEventListener("click", () => app.nextPreview());
-        previousButtonElement.addEventListener("click", () => app.previousPreview());
+        nextButtonElement.addEventListener("click", () => this.nextPreview());
+        previousButtonElement.addEventListener("click", () => this.previousPreview());
     }
     // TODO
     // this.pixiApp.renderer.render(this.pixiApp.stage);
     // this.pixiApp.stage.addChild(this.sprite);
 }
-
-const app = new UnderwaterCorrectorApp();
-await app.init();
 
 document.querySelectorAll(".drop-zone__input").forEach((element) => {
     const inputElement = element as HTMLInputElement;
@@ -231,3 +226,6 @@ async function handleFile(files: FileList) {
 
     // new UnderwaterCorrector(url, fileType, file.name, metadatas);
 }
+
+const app = new UnderwaterCorrectorApp();
+(async () => await app.init())();

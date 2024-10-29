@@ -2,9 +2,9 @@ import * as ExifReader from "exifreader";
 import * as piexif from "piexifjs";
 import * as PIXI from "pixi.js";
 
+import { type UnderwaterCorrectorApp } from "../main";
 import { exifReaderToPiexif } from "./exif";
 import { getColorFilterMatrix, getTweakedMatrix } from "./image-correction";
-import { type UnderwaterCorrectorApp } from "./main";
 import { exportLargeImage } from "./utils";
 
 const videoMatrixInterval = 0.2;
