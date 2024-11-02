@@ -3,7 +3,8 @@ import { Preview, UnloadedPreview, VideoPreview } from "./script/previews";
 
 // UI elements
 const imageZone = document.getElementById("image-zone") as HTMLImageElement;
-const exportButtonElement = document.getElementById("export-button") as HTMLInputElement;
+const downloadButtonElement = document.getElementById("download-button") as HTMLInputElement;
+const shareButtonElement = document.getElementById("share-button") as HTMLInputElement;
 const nextButtonElement = document.getElementById("next-media") as HTMLInputElement;
 const previousButtonElement = document.getElementById("previous-media") as HTMLInputElement;
 const playPauseButtonElement = document.getElementById("play-pause") as HTMLInputElement;
@@ -46,9 +47,13 @@ export class UnderwaterCorrectorApp {
     extendPreviews(previews: UnloadedPreview[]) {
         this.previews.push(...previews);
         if (this.previews.length > 0) {
-            [gainCursorElement, greenBlueCursorElement, redCursorElement, exportButtonElement].forEach(
-                (e) => (e.disabled = false)
-            );
+            [
+                gainCursorElement,
+                greenBlueCursorElement,
+                redCursorElement,
+                downloadButtonElement,
+                shareButtonElement,
+            ].forEach((e) => (e.disabled = false));
         }
         if (this.previews.length > 1) {
             for (let e of multipleMediaControls) {
@@ -137,11 +142,11 @@ export class UnderwaterCorrectorApp {
         this.updateMatrix();
     }
 
-    async download() {
+    async download(share: boolean = false) {
         if (!this.currentPreview) {
             throw "Download shouldn't be clickable before loading any media.";
         }
-        await this.currentPreview.download();
+        await this.currentPreview.download(share);
     }
 
     updateMatrix() {
@@ -164,7 +169,8 @@ export class UnderwaterCorrectorApp {
             this.seekVideo(e.target.value);
         });
         playPauseButtonElement.addEventListener("click", () => this.togglePlayPauseVideo());
-        exportButtonElement.addEventListener("click", () => this.download());
+        downloadButtonElement.addEventListener("click", () => this.download());
+        shareButtonElement.addEventListener("click", () => this.download(true));
         nextButtonElement.addEventListener("click", () => this.nextPreview());
         previousButtonElement.addEventListener("click", () => this.previousPreview());
     }

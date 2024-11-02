@@ -164,20 +164,15 @@ export class Preview {
         const container = new PIXI.Container();
         container.addChild(this.sprite);
         const pixels = this.app.pixiApp.renderer.extract.pixels(container);
-        console.log(pixels.height);
-        console.log(pixels.width);
 
         const filterMatrix = getColorFilterMatrix(pixels.pixels, pixels.width, pixels.height);
 
         return filterMatrix as PIXI.ColorMatrix;
     }
 
-    async download() {
-        const a = document.createElement("a");
-
+    async download(share: boolean = false) {
         const dotI = this.originalFileName.lastIndexOf(".");
         const name = this.originalFileName.substring(0, dotI);
-        a.download = `${name}-edited.jpg`;
 
         // We create a new sprite with the original dimensions (no downscale)
         const texture = await PIXI.Assets.load(this.originalFileData);
@@ -192,8 +187,25 @@ export class Preview {
         let jpegData = canvas.toDataURL("image/jpeg", 0.9);
         jpegData = piexif.insert(this.metadatas, jpegData);
 
-        a.href = jpegData;
-        a.click();
+        const filename = `${name}-edited.jpg`;
+
+        // On mobile devices, it is way more convenient to download content via the share button than the download feature.
+        // Especially on PWA.
+        if (!share) {
+            const a = document.createElement("a");
+            a.href = jpegData;
+            a.download = filename;
+            a.click();
+        } else {
+            const blob = await (await fetch(jpegData)).blob();
+            const file = new File([blob], filename, { type: blob.type, lastModified: new Date().getTime() });
+            const shareData = { files: [file] };
+            if (navigator.canShare && navigator.canShare(shareData)) {
+                navigator.share({ files: [file] });
+            } else {
+                alert("Can't share for some reason !");
+            }
+        }
     }
 }
 
