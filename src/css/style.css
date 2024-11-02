@@ -61,29 +61,34 @@ body {
     display: flex;
     flex-direction: column;
     flex-basis: 10px;
+    gap: 3px;
 }
 
 .sidebar__buttons input[type="button"] {
     background-color: #555555;
-    width: 100%;
     border-color: #555555;
     color: white;
-    padding: 15px 32px;
+    padding: 16px 0px;
     text-align: center;
     text-decoration: none;
-    display: inline-block;
     font-size: 16px;
     border-radius: 8px;
-    justify-content: flex-end;
     cursor: pointer;
     transition-duration: 0.4s;
     border-style: solid;
+    width: 100%;
+}
+
+#preview-navigation {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    gap: 3px
 }
 
 .sidebar__buttons input[type="button"]:hover {
     background-color: white;
     color: black;
-
 }
 
 .drop-zone {
@@ -147,11 +152,4 @@ body {
 
 .hidden {
     display: none !important;
-}
-
-
-#preview-navigation {
-    display: flex;
-    flex-direction: row;
-    width: 100%;
 }
