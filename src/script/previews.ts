@@ -9,7 +9,8 @@ import { exportLargeImage } from "./utils";
 
 const videoMatrixInterval = 0.2;
 // The maximum x or y dimension of the image that will be displayed.
-const previewMaxDimension = 1024;
+const PHOTO_PREVIEW_MAX_DIMENSION = 2048;
+const VIDEO_PREVIEW_MAX_DIMENSION = 1024;
 
 const SUPPORTED_PHOTO_TYPES = ["image/jpeg", "image/png"];
 const SUPPORTED_VIDEO_TYPES = ["video/mp4"];
@@ -124,6 +125,12 @@ export class Preview {
     updateFilter() {
         throw "Not implemented !";
     }
+    calculateScale(imageWidth: number, imageHeight: number): number {
+        throw "Not implemented !";
+        imageHeight;
+        imageWidth;
+    }
+
     bindDomEvents() {}
 
     scalePreview() {
@@ -131,10 +138,7 @@ export class Preview {
         const imageHeight = this.sprite.texture.height;
 
         // Scale the image to match the maximum dimension
-        const scaleX = previewMaxDimension / imageWidth;
-        const scaleY = previewMaxDimension / imageHeight;
-
-        const scale = Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
+        const scale = this.calculateScale(imageWidth, imageHeight);
 
         this.previewWidth = Math.round(imageWidth * scale);
         this.previewHeight = Math.round(imageHeight * scale);
@@ -152,10 +156,6 @@ export class Preview {
         this.app.pixiApp.stage.removeChild(this.sprite);
         PIXI.Assets.unload(this.originalBlobURL);
         URL.revokeObjectURL(this.originalBlobURL);
-        // this.texture.destroy(true);
-        // this.sprite.destroy({ texture: true, textureSource: true });
-        // this.texture.destroy();
-        // this.previewFilter.destroy();
     }
 
     // Utility methods
@@ -223,6 +223,13 @@ export class PhotoPreview extends Preview {
 
     updateFilter() {
         this.previewFilter.matrix = getTweakedMatrix(this.filterMatrixes[0], this.app.tweakParameters);
+    }
+
+    calculateScale(imageWidth: number, imageHeight: number): number {
+        const scaleX = PHOTO_PREVIEW_MAX_DIMENSION / imageWidth;
+        const scaleY = PHOTO_PREVIEW_MAX_DIMENSION / imageHeight;
+
+        return Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
     }
 
     async generateMatrixes() {
@@ -319,6 +326,13 @@ export class VideoPreview extends Preview {
             index = 0;
         }
         this.previewFilter.matrix = getTweakedMatrix(this.filterMatrixes[index], this.app.tweakParameters);
+    }
+
+    calculateScale(imageWidth: number, imageHeight: number): number {
+        const scaleX = VIDEO_PREVIEW_MAX_DIMENSION / imageWidth;
+        const scaleY = VIDEO_PREVIEW_MAX_DIMENSION / imageHeight;
+
+        return Math.min(scaleX, scaleY, 1); // Ensure we don't scale up the image
     }
 
     seek(value: number) {
