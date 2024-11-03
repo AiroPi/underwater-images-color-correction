@@ -65,13 +65,12 @@ export class UnloadedPreview {
             preview = new PhotoPreview(app, url, this.file.type, this.file.name, metadatas);
         }
         await preview.init();
-        URL.revokeObjectURL(url);
         return preview;
     }
 }
 
 export class Preview {
-    originalFileData: any;
+    originalBlobURL: string;
     originalFileName: string;
     fileType: string;
     metadatas: any;
@@ -87,9 +86,9 @@ export class Preview {
 
     onload?: () => any;
 
-    constructor(app: UnderwaterCorrectorApp, fileData: any, fileType: string, fileName: string, metadatas?: any) {
+    constructor(app: UnderwaterCorrectorApp, blobURL: any, fileType: string, fileName: string, metadatas?: any) {
         this.app = app;
-        this.originalFileData = fileData;
+        this.originalBlobURL = blobURL;
         this.originalFileName = fileName;
         this.fileType = fileType;
         this.metadatas = metadatas;
@@ -151,7 +150,8 @@ export class Preview {
     }
     detach() {
         this.app.pixiApp.stage.removeChild(this.sprite);
-        PIXI.Assets.unload(this.originalFileData);
+        PIXI.Assets.unload(this.originalBlobURL);
+        URL.revokeObjectURL(this.originalBlobURL);
         // this.texture.destroy(true);
         // this.sprite.destroy({ texture: true, textureSource: true });
         // this.texture.destroy();
@@ -175,7 +175,7 @@ export class Preview {
         const name = this.originalFileName.substring(0, dotI);
 
         // We create a new sprite with the original dimensions (no downscale)
-        const texture = await PIXI.Assets.load(this.originalFileData);
+        const texture = await PIXI.Assets.load(this.originalBlobURL);
         const originalWidth = texture.width;
         const originalHeight = texture.height;
         const sprite = new PIXI.Sprite(texture);
@@ -215,7 +215,7 @@ export class PhotoPreview extends Preview {
     async loadTexture() {
         // this.texture = PIXI.Texture.from(this.originalFileData);
         this.texture = await PIXI.Assets.load({
-            src: this.originalFileData,
+            src: this.originalBlobURL,
             loadParser: "loadTextures",
         });
         this.domElement = this.texture.source.resource;
@@ -250,7 +250,7 @@ export class VideoPreview extends Preview {
 
     async loadTexture() {
         this.texture = await PIXI.Assets.load({
-            src: this.originalFileData,
+            src: this.originalBlobURL,
             loadParser: "loadVideo",
         });
         this.domElement = this.texture.source.resource;
